@@ -676,6 +676,15 @@ code, pre {
     text-align: center;
 }
 
+.install-pitch {
+    text-align: center;
+    color: var(--color-text-secondary);
+    font-size: 1rem;
+    max-width: 600px;
+    margin: 0 auto var(--space-xl);
+    font-style: italic;
+}
+
 .install-tabs {
     display: flex;
     justify-content: center;
