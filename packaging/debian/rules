@@ -7,11 +7,20 @@ export CARGO_HOME = $(CURDIR)/debian/cargo_home
 	dh $@
 
 override_dh_auto_build:
+	# Build AVX2 baseline binary (compatible with most CPUs from 2013+)
+	# Disable AVX-512 to prevent SIGILL on older CPUs
+	WHISPER_NO_AVX512=ON cargo build --release --locked
+	cp target/release/voxtype target/release/voxtype-avx2
+	# Build AVX-512 optimized binary (for Zen 4+, some Intel)
+	cargo clean
 	cargo build --release --locked
+	cp target/release/voxtype target/release/voxtype-avx512
 
 override_dh_auto_install:
-	# Install binary
-	install -D -m 755 target/release/voxtype debian/voxtype/usr/bin/voxtype
+	# Install tiered binaries to /usr/lib/voxtype/
+	# The postinst script creates a symlink at /usr/bin/voxtype
+	install -D -m 755 target/release/voxtype-avx2 debian/voxtype/usr/lib/voxtype/voxtype-avx2
+	install -D -m 755 target/release/voxtype-avx512 debian/voxtype/usr/lib/voxtype/voxtype-avx512
 	# Install default configuration
 	install -D -m 644 config/default.toml debian/voxtype/etc/voxtype/config.toml
 	# Install documentation
@@ -26,7 +35,8 @@ override_dh_auto_install:
 		debian/voxtype/usr/share/fish/vendor_completions.d/voxtype.fish
 
 override_dh_auto_test:
-	cargo test --release --locked
+	# Only test with AVX2 build to avoid SIGILL in build environments
+	WHISPER_NO_AVX512=ON cargo test --release --locked
 
 override_dh_installsystemd:
 	dh_installsystemd --user --name=voxtype

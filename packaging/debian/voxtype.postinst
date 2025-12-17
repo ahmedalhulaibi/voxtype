@@ -3,8 +3,28 @@ set -e
 
 case "$1" in
     configure)
+        # Detect CPU capabilities and symlink the appropriate voxtype binary
+        #
+        # Binary variants:
+        #   voxtype-avx2:   Works on most CPUs from 2013+ (Intel Haswell, AMD Zen)
+        #   voxtype-avx512: Optimized for newer CPUs (AMD Zen 4+, some Intel)
+
+        # Remove existing binary/symlink if present (for upgrades)
+        rm -f /usr/bin/voxtype
+
+        # Detect AVX-512 support
+        if grep -q avx512f /proc/cpuinfo 2>/dev/null; then
+            VARIANT="avx512"
+            ln -sf /usr/lib/voxtype/voxtype-avx512 /usr/bin/voxtype
+        else
+            VARIANT="avx2"
+            ln -sf /usr/lib/voxtype/voxtype-avx2 /usr/bin/voxtype
+        fi
+
         echo ""
         echo "=== Voxtype Post-Installation ==="
+        echo ""
+        echo "CPU detected: $VARIANT (using voxtype-$VARIANT)"
         echo ""
         echo "To complete setup, run these commands:"
         echo ""
@@ -13,13 +33,10 @@ case "$1" in
         echo ""
         echo "  2. Log out and back in for group changes to take effect"
         echo ""
-        echo "  3. Enable and start the ydotool daemon:"
-        echo "     systemctl --user enable --now ydotool"
-        echo ""
-        echo "  4. Download a whisper model:"
+        echo "  3. Download a whisper model:"
         echo "     voxtype setup --download"
         echo ""
-        echo "  5. Start voxtype:"
+        echo "  4. Start voxtype:"
         echo "     systemctl --user enable --now voxtype"
         echo "     or run manually: voxtype"
         echo ""

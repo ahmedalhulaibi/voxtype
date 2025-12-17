@@ -1,7 +1,7 @@
 Name:           voxtype
 Version:        0.3.0
 Release:        1%{?dist}
-Summary:        Push-to-talk voice-to-text for Wayland Linux
+Summary:        Push-to-talk voice-to-text for Linux
 
 License:        MIT
 URL:            https://github.com/peteonrails/voxtype
@@ -12,6 +12,7 @@ BuildRequires:  rust
 BuildRequires:  clang-devel
 BuildRequires:  alsa-lib-devel
 BuildRequires:  systemd-rpm-macros
+BuildRequires:  cmake
 
 Recommends:     wtype
 Recommends:     wl-clipboard
@@ -20,28 +21,45 @@ Suggests:       libnotify
 Suggests:       pipewire
 
 %description
-Voxtype is a push-to-talk voice-to-text daemon for Wayland Linux systems.
+Voxtype is a push-to-talk voice-to-text daemon for Linux.
+Optimized for Wayland, works on X11 too.
 Hold a hotkey while speaking, release to transcribe and output text at
 your cursor position.
 
 Features:
-- Works on all Wayland compositors using kernel-level input (evdev)
+- Works on any Linux desktop using kernel-level input (evdev)
 - Fully offline transcription using whisper.cpp
-- Fallback chain: wtype (best CJK support), ydotool, clipboard
+- Fallback chain: wtype (Wayland, CJK support), ydotool (X11), clipboard
 - Configurable hotkeys, models, and output modes
 
 Note: User must be in the 'input' group for hotkey detection.
+
+This package includes tiered CPU binaries:
+- voxtype-avx2: Compatible with most CPUs from 2013+ (Intel Haswell, AMD Zen)
+- voxtype-avx512: Optimized for newer CPUs (AMD Zen 4+, some Intel)
+
+The appropriate binary is selected automatically at install time.
 
 %prep
 %autosetup -n %{name}-%{version}
 
 %build
 export CARGO_HOME=%{_builddir}/cargo
+
+# Build AVX2 baseline binary (compatible with most CPUs from 2013+)
+# Disable AVX-512 to prevent SIGILL on older CPUs
+WHISPER_NO_AVX512=ON cargo build --release --locked
+cp target/release/voxtype target/release/voxtype-avx2
+
+# Build AVX-512 optimized binary (for Zen 4+, some Intel)
+cargo clean
 cargo build --release --locked
+cp target/release/voxtype target/release/voxtype-avx512
 
 %install
-# Install binary
-install -D -m 755 target/release/voxtype %{buildroot}%{_bindir}/voxtype
+# Install tiered binaries to /usr/lib/voxtype/
+install -D -m 755 target/release/voxtype-avx2 %{buildroot}%{_libdir}/voxtype/voxtype-avx2
+install -D -m 755 target/release/voxtype-avx512 %{buildroot}%{_libdir}/voxtype/voxtype-avx512
 
 # Install default configuration
 install -D -m 644 config/default.toml %{buildroot}%{_sysconfdir}/voxtype/config.toml
@@ -67,20 +85,30 @@ install -D -m 644 packaging/completions/voxtype.fish \
 
 %check
 export CARGO_HOME=%{_builddir}/cargo
-cargo test --release --locked
+# Only test with AVX2 build to avoid SIGILL in build environments
+WHISPER_NO_AVX512=ON cargo test --release --locked
 
 %post
 %systemd_user_post voxtype.service
 
-%preun
-%systemd_user_preun voxtype.service
+# Detect CPU capabilities and symlink the appropriate binary
+rm -f %{_bindir}/voxtype
 
-%postun
-%systemd_user_postun_with_restart voxtype.service
+if grep -q avx512f /proc/cpuinfo 2>/dev/null; then
+    VARIANT="avx512"
+    ln -sf %{_libdir}/voxtype/voxtype-avx512 %{_bindir}/voxtype
+else
+    VARIANT="avx2"
+    ln -sf %{_libdir}/voxtype/voxtype-avx2 %{_bindir}/voxtype
+fi
 
-%posttrans
+# Restore SELinux context
+restorecon %{_bindir}/voxtype 2>/dev/null || true
+
 echo ""
 echo "=== Voxtype Post-Installation ==="
+echo ""
+echo "CPU detected: $VARIANT (using voxtype-$VARIANT)"
 echo ""
 echo "To complete setup:"
 echo ""
@@ -99,11 +127,22 @@ echo "Note: wtype is used for text output on Wayland (best CJK support)."
 echo "      ydotool is an optional fallback for X11/TTY."
 echo ""
 
+%preun
+%systemd_user_preun voxtype.service
+
+%postun
+%systemd_user_postun_with_restart voxtype.service
+# Remove symlink on package removal
+rm -f %{_bindir}/voxtype
+
 %files
 %{_licensedir}/%{name}/LICENSE
 %{_docdir}/%{name}/README.md
 %{_docdir}/%{name}/INSTALL.md
-%{_bindir}/voxtype
+%{_libdir}/voxtype/voxtype-avx2
+%{_libdir}/voxtype/voxtype-avx512
+# The symlink is created by %post, mark as ghost so rpm -V doesn't complain
+%ghost %{_bindir}/voxtype
 %config(noreplace) %{_sysconfdir}/voxtype/config.toml
 %{_userunitdir}/voxtype.service
 %{_datadir}/bash-completion/completions/voxtype
@@ -111,11 +150,18 @@ echo ""
 %{_datadir}/fish/vendor_completions.d/voxtype.fish
 
 %changelog
+* Tue Dec 17 2025 Peter Jackson <pete@peteonrails.com> - 0.3.0-2
+- Add tiered CPU binaries (AVX2 baseline + AVX-512 optimized)
+- Fix SIGILL crash on CPUs without AVX-512 support (Issue #4)
+- Post-install script now auto-detects CPU and selects appropriate binary
+
 * Mon Dec 15 2025 Peter Jackson <pete@peteonrails.com> - 0.3.0-1
 - Add wtype support for better CJK/Unicode text output (Korean, Chinese, Japanese)
 - wtype is now primary output method on Wayland (no daemon required)
 - Fallback chain: wtype -> ydotool -> clipboard
 - Fix systemd service not starting on login after logout
+- Add output chain detection to setup and config commands
+- Update positioning: optimized for Wayland, works on X11 too
 
 * Sat Dec 14 2025 Peter Jackson <pete@peteonrails.com> - 0.2.2-1
 - Code cleanup: fix clippy warnings, derive Default, refactor build_stream
