@@ -70,6 +70,21 @@ This guide covers all methods for installing Voxtype on Linux systems.
 
 ---
 
+## System Requirements
+
+Pre-built packages require **glibc 2.38 or newer**:
+
+| Distro | Minimum Version | glibc |
+|--------|-----------------|-------|
+| Ubuntu | 24.04 (Noble) | 2.39 |
+| Fedora | 39+ | 2.38 |
+| Arch Linux | Rolling | 2.40+ |
+| Debian | Trixie (13) | 2.38 |
+
+Older distributions (Ubuntu 22.04, Debian Bookworm) can build from source.
+
+---
+
 ## Quick Install
 
 ### One-liner (from source)

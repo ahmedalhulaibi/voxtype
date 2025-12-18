@@ -303,9 +303,13 @@ Results vary by hardware. Example on AMD RX 6800:
 
 ## Requirements
 
+### System Requirements
+
+- **Linux** with glibc 2.38+ (Ubuntu 24.04+, Fedora 39+, Arch, Debian Trixie+)
+- **Wayland or X11** desktop (GNOME, KDE, Sway, Hyprland, i3, etc.)
+
 ### Runtime Dependencies
 
-- **Linux desktop** (Wayland or X11 - GNOME, KDE, Sway, Hyprland, i3, etc.)
 - **PipeWire** or **PulseAudio** (for audio capture)
 - **wtype** (for typing output on Wayland) - *recommended, best CJK/Unicode support*
 - **ydotool** + daemon - *for X11 or as Wayland fallback*
