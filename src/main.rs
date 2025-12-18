@@ -153,6 +153,14 @@ enum SetupAction {
         /// Output only the CSS config (for scripting)
         #[arg(long)]
         css: bool,
+
+        /// Install waybar integration (inject config and CSS)
+        #[arg(long)]
+        install: bool,
+
+        /// Uninstall waybar integration (remove config and CSS)
+        #[arg(long)]
+        uninstall: bool,
     },
 
     /// Interactive model selection and download
@@ -243,8 +251,17 @@ async fn main() -> anyhow::Result<()> {
                         setup::systemd::install().await?;
                     }
                 }
-                Some(SetupAction::Waybar { json, css }) => {
-                    if json {
+                Some(SetupAction::Waybar {
+                    json,
+                    css,
+                    install,
+                    uninstall,
+                }) => {
+                    if install {
+                        setup::waybar::install()?;
+                    } else if uninstall {
+                        setup::waybar::uninstall()?;
+                    } else if json {
                         println!("{}", setup::waybar::get_json_config());
                     } else if css {
                         println!("{}", setup::waybar::get_css_config());

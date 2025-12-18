@@ -85,6 +85,12 @@ echo ""
 echo "Enabling voxtype service..."
 systemctl --user enable voxtype
 
+# Waybar integration (optional, with user prompt)
+if [ -f "$HOME/.config/waybar/config.jsonc" ] || [ -f "$HOME/.config/waybar/config" ]; then
+    echo ""
+    voxtype setup waybar --install
+fi
+
 echo ""
 echo "=== Voxtype Installation Complete ==="
 echo ""
