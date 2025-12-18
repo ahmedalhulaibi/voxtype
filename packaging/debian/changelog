@@ -1,3 +1,12 @@
+voxtype (0.4.0-2) unstable; urgency=high
+
+  * Fix SIGILL crash on Zen 3 CPUs caused by GFNI instructions (Issue #4)
+  * GFNI (Galois Field New Instructions) is separate from AVX-512
+  * Add -gfni to RUSTFLAGS and -mno-gfni to CMAKE flags
+  * Extend binary verification to detect both AVX-512 and GFNI instructions
+
+ -- Peter Jackson <pete@peteonrails.com>  Wed, 18 Dec 2025 23:00:00 +0000
+
 voxtype (0.4.0-1) unstable; urgency=medium
 
   * Add compositor keybinding support via 'voxtype record' command

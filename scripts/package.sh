@@ -181,15 +181,16 @@ if [[ "$SKIP_BUILD" == "false" ]]; then
         # This disables AVX-512 to prevent SIGILL on older CPUs
         if [[ ! -f "${RELEASE_DIR}/voxtype-${VERSION}-linux-x86_64-avx2" ]]; then
             echo "Building AVX2 baseline release (broad compatibility)..."
-            echo "  Disabling AVX-512 instructions via compiler flags"
-            # IMPORTANT: Must clean to ensure whisper.cpp recompiles without AVX-512
+            echo "  Disabling AVX-512 and GFNI instructions via compiler flags"
+            # IMPORTANT: Must clean to ensure whisper.cpp recompiles without AVX-512/GFNI
             # Cargo/cmake don't invalidate cache when CMAKE_*_FLAGS change
-            # Use RUSTFLAGS to disable AVX-512 in Rust code, CMAKE flags for C/C++ code
-            # -C target-feature disables AVX-512 in rustc/LLVM (affects Rust std lib and deps)
-            # CMAKE_*_FLAGS disable AVX-512 in whisper.cpp via -mno-avx512f
+            # Use RUSTFLAGS to disable AVX-512 and GFNI in Rust code, CMAKE flags for C/C++ code
+            # -C target-feature disables these in rustc/LLVM (affects Rust std lib and deps)
+            # CMAKE_*_FLAGS disable them in whisper.cpp
+            # GFNI (Galois Field New Instructions) is separate from AVX-512 and unsupported on Zen 3
             cargo clean
-            RUSTFLAGS="-C target-cpu=haswell -C target-feature=-avx512f,-avx512bw,-avx512cd,-avx512dq,-avx512vl" \
-            CMAKE_C_FLAGS="-mno-avx512f" CMAKE_CXX_FLAGS="-mno-avx512f" \
+            RUSTFLAGS="-C target-cpu=haswell -C target-feature=-avx512f,-avx512bw,-avx512cd,-avx512dq,-avx512vl,-gfni" \
+            CMAKE_C_FLAGS="-mno-avx512f -mno-gfni" CMAKE_CXX_FLAGS="-mno-avx512f -mno-gfni" \
             cargo build --release
             cp target/release/voxtype "${RELEASE_DIR}/voxtype-${VERSION}-linux-x86_64-avx2"
         fi
@@ -206,13 +207,14 @@ if [[ "$SKIP_BUILD" == "false" ]]; then
         # Build Vulkan GPU release (uses AVX2 for broad compatibility)
         if [[ ! -f "${RELEASE_DIR}/voxtype-${VERSION}-linux-x86_64-vulkan" ]]; then
             echo "Building Vulkan GPU release..."
-            # Clean to ensure whisper.cpp recompiles without AVX-512
-            # Use RUSTFLAGS to disable AVX-512 in Rust code, CMAKE flags for C/C++ code
-            # -C target-feature disables AVX-512 in rustc/LLVM (affects Rust std lib and deps)
-            # CMAKE_*_FLAGS disable AVX-512 in whisper.cpp via -mno-avx512f
+            # Clean to ensure whisper.cpp recompiles without AVX-512/GFNI
+            # Use RUSTFLAGS to disable AVX-512 and GFNI in Rust code, CMAKE flags for C/C++ code
+            # -C target-feature disables these in rustc/LLVM (affects Rust std lib and deps)
+            # CMAKE_*_FLAGS disable them in whisper.cpp
+            # GFNI (Galois Field New Instructions) is separate from AVX-512 and unsupported on Zen 3
             cargo clean
-            RUSTFLAGS="-C target-cpu=haswell -C target-feature=-avx512f,-avx512bw,-avx512cd,-avx512dq,-avx512vl" \
-            CMAKE_C_FLAGS="-mno-avx512f" CMAKE_CXX_FLAGS="-mno-avx512f" \
+            RUSTFLAGS="-C target-cpu=haswell -C target-feature=-avx512f,-avx512bw,-avx512cd,-avx512dq,-avx512vl,-gfni" \
+            CMAKE_C_FLAGS="-mno-avx512f -mno-gfni" CMAKE_CXX_FLAGS="-mno-avx512f -mno-gfni" \
             cargo build --release --features gpu-vulkan
             cp target/release/voxtype "${RELEASE_DIR}/voxtype-${VERSION}-linux-x86_64-vulkan"
         fi
@@ -249,22 +251,32 @@ if [[ "$TARGET_ARCH" == "x86_64" ]]; then
     echo ""
     echo "Verifying binary CPU instructions..."
 
-    verify_no_avx512() {
+    verify_no_forbidden_instructions() {
         local binary="$1"
         local name="$2"
         if ! command -v objdump &> /dev/null; then
             echo "  Warning: objdump not found, skipping instruction verification"
             return 0
         fi
-        local zmm_count
+        local zmm_count gfni_count
         zmm_count=$(objdump -d "$binary" 2>/dev/null | grep -c zmm) || zmm_count=0
+        gfni_count=$(objdump -d "$binary" 2>/dev/null | grep -cE 'vgf2p8|gf2p8') || gfni_count=0
+        local failed=false
         if [[ "$zmm_count" -gt 0 ]]; then
             echo "  ERROR: $name has $zmm_count AVX-512 (zmm) instructions!"
             echo "         This binary will crash on CPUs without AVX-512."
+            failed=true
+        fi
+        if [[ "$gfni_count" -gt 0 ]]; then
+            echo "  ERROR: $name has $gfni_count GFNI instructions!"
+            echo "         This binary will crash on CPUs without GFNI (e.g., Zen 3)."
+            failed=true
+        fi
+        if [[ "$failed" == "true" ]]; then
             echo "         The build cache was likely polluted. Try: cargo clean && re-run"
             return 1
         fi
-        echo "  ✓ $name: no AVX-512 instructions"
+        echo "  ✓ $name: no AVX-512 or GFNI instructions"
         return 0
     }
 
@@ -288,11 +300,11 @@ if [[ "$TARGET_ARCH" == "x86_64" ]]; then
 
     VERIFY_FAILED=false
 
-    # AVX2 and Vulkan binaries should NOT have AVX-512 instructions
-    if ! verify_no_avx512 "${RELEASE_DIR}/voxtype-${VERSION}-linux-x86_64-avx2" "voxtype-avx2"; then
+    # AVX2 and Vulkan binaries should NOT have AVX-512 or GFNI instructions
+    if ! verify_no_forbidden_instructions "${RELEASE_DIR}/voxtype-${VERSION}-linux-x86_64-avx2" "voxtype-avx2"; then
         VERIFY_FAILED=true
     fi
-    if ! verify_no_avx512 "${RELEASE_DIR}/voxtype-${VERSION}-linux-x86_64-vulkan" "voxtype-vulkan"; then
+    if ! verify_no_forbidden_instructions "${RELEASE_DIR}/voxtype-${VERSION}-linux-x86_64-vulkan" "voxtype-vulkan"; then
         VERIFY_FAILED=true
     fi
 
