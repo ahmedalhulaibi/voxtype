@@ -434,6 +434,7 @@ We want to hear from you! Voxtype is a young project and your feedback helps mak
 
 - [Peter Jackson](https://github.com/peteonrails) - Creator and maintainer
 - [jvantillo](https://github.com/jvantillo) - GPU acceleration patch, whisper-rs 0.15.1 compatibility
+- [materemias](https://github.com/materemias) - PKGBUILD fix for local builds
 
 ## License
 
