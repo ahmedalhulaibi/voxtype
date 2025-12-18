@@ -1,3 +1,12 @@
+voxtype (0.3.3-2) unstable; urgency=high
+
+  * Fix SIGILL crash on CPUs without AVX-512 support (Issue #4)
+  * Root cause: Rust std library was generating AVX-512 instructions
+  * Add explicit -C target-feature flags to disable all AVX-512 variants
+  * Add post-build verification to prevent future regressions
+
+ -- Peter Jackson <pete@peteonrails.com>  Wed, 18 Dec 2025 18:00:00 +0000
+
 voxtype (0.3.3-1) unstable; urgency=medium
 
   * Add --extended flag to voxtype status command
