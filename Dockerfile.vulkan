@@ -8,7 +8,7 @@
 #   docker build -f Dockerfile.vulkan -t voxtype-vulkan-builder .
 #   docker run --rm -v $(pwd)/releases:/output voxtype-vulkan-builder
 #
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 ARG VERSION=0.4.1
 ARG DEBIAN_FRONTEND=noninteractive
@@ -16,7 +16,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 # Make VERSION available at runtime
 ENV VERSION=${VERSION}
 
-# Install build dependencies including Vulkan SDK
+# Install build dependencies including Vulkan SDK (24.04 has glslc in repos)
 RUN apt-get update && apt-get install -y \
     curl \
     build-essential \
@@ -29,8 +29,9 @@ RUN apt-get update && apt-get install -y \
     libvulkan-dev \
     vulkan-tools \
     glslang-tools \
-    glslang-dev \
     spirv-tools \
+    libshaderc-dev \
+    glslc \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Rust via rustup
@@ -43,22 +44,23 @@ WORKDIR /build
 # Copy source code
 COPY . .
 
-# Limit parallel jobs to prevent resource exhaustion
-ENV CARGO_BUILD_JOBS=2
-ENV CMAKE_BUILD_PARALLEL_LEVEL=2
-ENV MAKEFLAGS="-j2"
+# Force single-threaded builds to prevent cmake deadlocks
+ENV CARGO_BUILD_JOBS=1
+ENV CMAKE_BUILD_PARALLEL_LEVEL=1
+ENV MAKEFLAGS="-j1"
 
-# Build flags to disable AVX-512, GFNI, and AVX-VNNI (for Zen 3 compatibility)
-ENV RUSTFLAGS="-C target-cpu=haswell -C target-feature=-avx512f,-avx512bw,-avx512cd,-avx512dq,-avx512vl,-gfni"
-ENV GGML_NATIVE=OFF
-ENV GGML_AVX512=OFF
-ENV GGML_AVX_VNNI=OFF
-ENV GGML_AVX512_VNNI=OFF
-ENV CMAKE_C_FLAGS="-mno-avx512f -mno-avx512vl -mno-avx512bw -mno-avx512dq -mno-avx512cd -mno-gfni -mno-avxvnni"
-ENV CMAKE_CXX_FLAGS="-mno-avx512f -mno-avx512vl -mno-avx512bw -mno-avx512dq -mno-avx512cd -mno-gfni -mno-avxvnni"
+# Build flags - use native CPU (i9-9900K has no AVX-512, so no leakage possible)
+# Disable LTO to prevent linking hangs
+ENV RUSTFLAGS="-C target-cpu=native -C lto=off -C codegen-units=8"
+# whisper.cpp/ggml flags - let it detect native CPU features
+ENV GGML_NATIVE=ON
 
 # Build Vulkan binary (verbose to show progress)
-RUN cargo build --release --features gpu-vulkan -vv 2>&1 | tee /tmp/build.log \
+# Override Cargo.toml's LTO settings to prevent linking hangs
+RUN cargo build --release --features gpu-vulkan \
+    --config 'profile.release.lto=false' \
+    --config 'profile.release.codegen-units=8' \
+    -vv 2>&1 | tee /tmp/build.log \
     && cp target/release/voxtype /tmp/voxtype-vulkan
 
 # Verify no AVX-512 or GFNI instructions
