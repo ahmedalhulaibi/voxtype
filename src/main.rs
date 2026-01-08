@@ -146,7 +146,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Send a record command to the running daemon via Unix signals
+/// Send a record command to the running daemon via Unix signals or file triggers
 fn send_record_command(config: &config::Config, action: RecordAction) -> anyhow::Result<()> {
     use nix::sys::signal::{kill, Signal};
     use nix::unistd::Pid;
@@ -175,6 +175,14 @@ fn send_record_command(config: &config::Config, action: RecordAction) -> anyhow:
         eprintln!("Error: Voxtype daemon is not running (stale PID file removed).");
         eprintln!("Start it with: voxtype daemon");
         std::process::exit(1);
+    }
+
+    // Handle cancel separately (uses file trigger instead of signal)
+    if matches!(action, RecordAction::Cancel) {
+        let cancel_file = config::Config::runtime_dir().join("cancel");
+        std::fs::write(&cancel_file, "cancel")
+            .map_err(|e| anyhow::anyhow!("Failed to write cancel file: {}", e))?;
+        return Ok(());
     }
 
     // For toggle, we need to read current state to decide which signal to send
@@ -207,6 +215,7 @@ fn send_record_command(config: &config::Config, action: RecordAction) -> anyhow:
                 Signal::SIGUSR1 // Start
             }
         }
+        RecordAction::Cancel => unreachable!(), // Handled above
     };
 
     kill(Pid::from_raw(pid), signal)
