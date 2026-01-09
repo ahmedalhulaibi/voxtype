@@ -50,9 +50,21 @@
 //!                                            │
 //!                                            ▼ final text
 //!                                   ┌──────────────┐
+//!                                   │  Pre-Output  │ (optional: compositor hook)
+//!                                   │    Hook      │
+//!                                   └──────────────┘
+//!                                            │
+//!                                            ▼
+//!                                   ┌──────────────┐
 //!                                   │    Output    │
 //!                                   │ wtype/ydotool│
 //!                                   │  /clipboard  │
+//!                                   └──────────────┘
+//!                                            │
+//!                                            ▼
+//!                                   ┌──────────────┐
+//!                                   │ Post-Output  │ (optional: compositor hook)
+//!                                   │    Hook      │
 //!                                   └──────────────┘
 //! ```
 
@@ -69,7 +81,7 @@ pub mod state;
 pub mod text;
 pub mod transcribe;
 
-pub use cli::{Cli, Commands, RecordAction, SetupAction};
+pub use cli::{Cli, Commands, CompositorType, RecordAction, SetupAction};
 pub use config::Config;
 pub use daemon::Daemon;
 pub use error::{Result, VoxtypeError};

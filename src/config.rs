@@ -102,6 +102,13 @@ type_delay_ms = 0
 # to auto-submit after dictation
 # auto_submit = true
 
+# Pre/post output hooks (optional)
+# Commands to run before and after typing output. Useful for compositor integration.
+# Example: Block modifier keys during typing with Hyprland submap:
+#   pre_output_command = "hyprctl dispatch submap voxtype_suppress"
+#   post_output_command = "hyprctl dispatch submap reset"
+# See troubleshooting docs for the required Hyprland submap configuration.
+
 # Post-processing command (optional)
 # Pipe transcribed text through an external command for cleanup before output.
 # The command receives text on stdin and outputs processed text on stdout.
@@ -559,6 +566,16 @@ pub struct OutputConfig {
     #[serde(default)]
     pub auto_submit: bool,
 
+    /// Command to run before typing output (e.g., compositor submap switch)
+    /// Useful for blocking modifier keys at the compositor level
+    #[serde(default)]
+    pub pre_output_command: Option<String>,
+
+    /// Command to run after typing output (e.g., reset compositor submap)
+    /// Runs even if typing fails, to ensure cleanup
+    #[serde(default)]
+    pub post_output_command: Option<String>,
+
     /// Optional post-processing command configuration
     /// Pipes transcribed text through an external command before output
     #[serde(default)]
@@ -609,6 +626,8 @@ impl Default for Config {
                 notification: NotificationConfig::default(),
                 type_delay_ms: 0,
                 auto_submit: false,
+                pre_output_command: None,
+                post_output_command: None,
                 post_process: None,
             },
             text: TextConfig::default(),
