@@ -259,7 +259,8 @@ impl Daemon {
 
                                 if let Err(e) = output::output_with_fallback(
                                     output_chain,
-                                    &final_text
+                                    &final_text,
+                                    self.config.output.release_modifiers,
                                 ).await {
                                     tracing::error!("Output failed: {}", e);
                                 }

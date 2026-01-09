@@ -10,6 +10,7 @@
 //! Paste mode (clipboard + Ctrl+V) helps with system with non US keyboard layouts.
 
 pub mod clipboard;
+pub mod modifiers;
 pub mod paste;
 pub mod post_process;
 pub mod wtype;
@@ -74,10 +75,24 @@ pub fn create_output_chain(config: &OutputConfig) -> Vec<Box<dyn TextOutput>> {
 }
 
 /// Try each output method in the chain until one succeeds
+/// If `release_modifiers` is true, releases all modifier keys before typing
+/// to prevent held modifiers from interfering with typed text.
 pub async fn output_with_fallback(
     chain: &[Box<dyn TextOutput>],
     text: &str,
+    release_modifiers: bool,
 ) -> Result<(), OutputError> {
+    // Release modifier keys before typing if configured
+    // This helps when using compositor keybindings with modifiers (e.g., SUPER+CTRL+X)
+    if release_modifiers {
+        if let Err(e) = modifiers::release_all_modifiers().await {
+            tracing::warn!("Failed to release modifiers: {}", e);
+            // Continue anyway - best effort
+        } else {
+            tracing::info!("Released modifier keys before typing");
+        }
+    }
+
     for output in chain {
         if !output.is_available().await {
             tracing::debug!("{} not available, trying next", output.name());

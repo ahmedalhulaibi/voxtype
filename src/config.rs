@@ -102,6 +102,11 @@ type_delay_ms = 0
 # to auto-submit after dictation
 # auto_submit = true
 
+# Release all modifier keys (Shift, Ctrl, Alt, Super) before typing output
+# Enable this when using compositor keybindings with modifiers (e.g., SUPER+CTRL+X)
+# to prevent held modifiers from interfering with typed text
+# release_modifiers = true
+
 # Post-processing command (optional)
 # Pipe transcribed text through an external command for cleanup before output.
 # The command receives text on stdin and outputs processed text on stdout.
@@ -559,6 +564,12 @@ pub struct OutputConfig {
     #[serde(default)]
     pub auto_submit: bool,
 
+    /// Release all modifier keys (Shift, Ctrl, Alt, Super) before typing
+    /// Useful when using compositor keybindings with modifiers (e.g., SUPER+CTRL+X)
+    /// to prevent held modifiers from interfering with typed text
+    #[serde(default)]
+    pub release_modifiers: bool,
+
     /// Optional post-processing command configuration
     /// Pipes transcribed text through an external command before output
     #[serde(default)]
@@ -609,6 +620,7 @@ impl Default for Config {
                 notification: NotificationConfig::default(),
                 type_delay_ms: 0,
                 auto_submit: false,
+                release_modifiers: false,
                 post_process: None,
             },
             text: TextConfig::default(),
