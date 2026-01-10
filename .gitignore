@@ -33,3 +33,4 @@ CLAUDE.md
 # Nix build output symlinks
 /result
 /result-*
+docker/
