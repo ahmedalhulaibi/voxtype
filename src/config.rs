@@ -55,6 +55,9 @@ sample_rate = 16000
 # Maximum recording duration in seconds (safety limit)
 max_duration_secs = 60
 
+# If true, transcribe audio when recording times out (instead of discarding)
+# transcribe_on_timeout = false
+
 # [audio.feedback]
 # Enable audio feedback sounds (beeps when recording starts/stops)
 # enabled = true
@@ -263,6 +266,10 @@ pub struct AudioConfig {
     /// Maximum recording duration in seconds (safety limit)
     pub max_duration_secs: u32,
 
+    /// If true, transcribe audio when recording times out (instead of discarding)
+    #[serde(default)]
+    pub transcribe_on_timeout: bool,
+
     /// Audio feedback settings
     #[serde(default)]
     pub feedback: AudioFeedbackConfig,
@@ -399,10 +406,10 @@ fn load_icon_theme(theme: &str) -> ResolvedIcons {
         },
         "omarchy" => ResolvedIcons {
             // Material Design icons matching Omarchy waybar config
-            idle: "\u{ec12}".to_string(),     // nf-md-microphone_outline
+            idle: "\u{ec12}".to_string(), // nf-md-microphone_outline
             recording: "\u{f036c}".to_string(), // nf-md-microphone
             transcribing: "\u{f051f}".to_string(), // nf-md-timer_sand
-            stopped: "\u{ec12}".to_string(),  // nf-md-microphone_outline
+            stopped: "\u{ec12}".to_string(), // nf-md-microphone_outline
         },
         "minimal" => ResolvedIcons {
             idle: "○".to_string(),
@@ -547,7 +554,6 @@ pub struct WhisperConfig {
     pub context_window_optimization: bool,
 
     // --- Remote backend settings ---
-
     /// Remote server endpoint URL (e.g., "http://192.168.1.100:8080")
     /// Required when backend = "remote"
     #[serde(default)]
@@ -709,6 +715,7 @@ impl Default for Config {
                 device: "default".to_string(),
                 sample_rate: 16000,
                 max_duration_secs: 60,
+                transcribe_on_timeout: false,
                 feedback: AudioFeedbackConfig::default(),
             },
             whisper: WhisperConfig {

@@ -112,18 +112,18 @@ impl ParsedKeystroke {
 fn key_name_to_evdev(name: &str) -> Result<u16, String> {
     match name.to_lowercase().as_str() {
         // Modifiers
-        "ctrl" | "control" | "leftctrl" => Ok(29),  // KEY_LEFTCTRL
-        "rightctrl" => Ok(97),                       // KEY_RIGHTCTRL
-        "shift" | "leftshift" => Ok(42),            // KEY_LEFTSHIFT
-        "rightshift" => Ok(54),                      // KEY_RIGHTSHIFT
-        "alt" | "leftalt" => Ok(56),                // KEY_LEFTALT
-        "rightalt" | "altgr" => Ok(100),            // KEY_RIGHTALT
+        "ctrl" | "control" | "leftctrl" => Ok(29), // KEY_LEFTCTRL
+        "rightctrl" => Ok(97),                     // KEY_RIGHTCTRL
+        "shift" | "leftshift" => Ok(42),           // KEY_LEFTSHIFT
+        "rightshift" => Ok(54),                    // KEY_RIGHTSHIFT
+        "alt" | "leftalt" => Ok(56),               // KEY_LEFTALT
+        "rightalt" | "altgr" => Ok(100),           // KEY_RIGHTALT
         "super" | "meta" | "leftmeta" | "win" => Ok(125), // KEY_LEFTMETA
 
         // Common keys
-        "v" => Ok(47),                               // KEY_V
-        "insert" | "ins" => Ok(110),                // KEY_INSERT
-        "enter" | "return" => Ok(28),               // KEY_ENTER
+        "v" => Ok(47),                // KEY_V
+        "insert" | "ins" => Ok(110),  // KEY_INSERT
+        "enter" | "return" => Ok(28), // KEY_ENTER
 
         // Letters (for completeness)
         "a" => Ok(30),
@@ -171,7 +171,11 @@ impl PasteOutput {
     pub fn new(notify: bool, auto_submit: bool, paste_keys: Option<String>) -> Self {
         let keystroke_str = paste_keys.as_deref().unwrap_or("ctrl+v");
         let keystroke = ParsedKeystroke::parse(keystroke_str).unwrap_or_else(|e| {
-            tracing::warn!("Invalid paste_keys '{}': {}, using ctrl+v", keystroke_str, e);
+            tracing::warn!(
+                "Invalid paste_keys '{}': {}, using ctrl+v",
+                keystroke_str,
+                e
+            );
             ParsedKeystroke::parse("ctrl+v").unwrap()
         });
 
@@ -317,7 +321,10 @@ impl PasteOutput {
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(OutputError::CtrlVFailed(format!("wtype failed: {}", stderr)));
+            return Err(OutputError::CtrlVFailed(format!(
+                "wtype failed: {}",
+                stderr
+            )));
         }
 
         Ok(())
@@ -464,7 +471,11 @@ impl TextOutput for PasteOutput {
         tracing::info!(
             "Text pasted via clipboard + {} ({} chars)",
             self.keystroke.modifiers.join("+")
-                + if !self.keystroke.modifiers.is_empty() { "+" } else { "" }
+                + if !self.keystroke.modifiers.is_empty() {
+                    "+"
+                } else {
+                    ""
+                }
                 + &self.keystroke.key,
             text.len()
         );

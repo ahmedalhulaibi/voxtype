@@ -40,9 +40,7 @@ impl WhisperTranscriber {
 
         tracing::info!("Model loaded in {:.2}s", start.elapsed().as_secs_f32());
 
-        let threads = config
-            .threads
-            .unwrap_or_else(|| num_cpus::get().min(4));
+        let threads = config.threads.unwrap_or_else(|| num_cpus::get().min(4));
 
         Ok(Self {
             ctx,
@@ -57,7 +55,9 @@ impl WhisperTranscriber {
 impl Transcriber for WhisperTranscriber {
     fn transcribe(&self, samples: &[f32]) -> Result<String, TranscribeError> {
         if samples.is_empty() {
-            return Err(TranscribeError::AudioFormat("Empty audio buffer".to_string()));
+            return Err(TranscribeError::AudioFormat(
+                "Empty audio buffer".to_string(),
+            ));
         }
 
         let duration_secs = samples.len() as f32 / 16000.0;
@@ -313,6 +313,9 @@ mod tests {
 
         // Verify the optimization provides significant reduction
         let ratio = WHISPER_DEFAULT_AUDIO_CTX as f32 / optimized_ctx.unwrap() as f32;
-        assert!(ratio > 10.0, "Optimization should reduce context by >10x for 1s clips");
+        assert!(
+            ratio > 10.0,
+            "Optimization should reduce context by >10x for 1s clips"
+        );
     }
 }

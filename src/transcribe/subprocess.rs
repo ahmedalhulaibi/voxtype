@@ -116,9 +116,10 @@ impl SubprocessTranscriber {
         })?;
 
         // Get handles
-        let stdin = child.stdin.take().ok_or_else(|| {
-            TranscribeError::InitFailed("Worker stdin not available".to_string())
-        })?;
+        let stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| TranscribeError::InitFailed("Worker stdin not available".to_string()))?;
 
         let stdout = child.stdout.take().ok_or_else(|| {
             TranscribeError::InitFailed("Worker stdout not available".to_string())
@@ -287,7 +288,9 @@ impl Transcriber for SubprocessTranscriber {
             })
         } else {
             Err(TranscribeError::InferenceFailed(
-                response.error.unwrap_or_else(|| "Unknown worker error".to_string()),
+                response
+                    .error
+                    .unwrap_or_else(|| "Unknown worker error".to_string()),
             ))
         }
     }

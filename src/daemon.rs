@@ -23,12 +23,7 @@ use tokio::signal::unix::{signal, SignalKind};
 /// Send a desktop notification
 async fn send_notification(title: &str, body: &str) {
     let _ = Command::new("notify-send")
-        .args([
-            "--app-name=Voxtype",
-            "--expire-time=2000",
-            title,
-            body,
-        ])
+        .args(["--app-name=Voxtype", "--expire-time=2000", title, body])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()
@@ -171,7 +166,14 @@ pub struct Daemon {
     text_processor: TextProcessor,
     post_processor: Option<PostProcessor>,
     // Background task for loading model on-demand
-    model_load_task: Option<tokio::task::JoinHandle<std::result::Result<Box<dyn crate::transcribe::Transcriber>, crate::error::TranscribeError>>>,
+    model_load_task: Option<
+        tokio::task::JoinHandle<
+            std::result::Result<
+                Box<dyn crate::transcribe::Transcriber>,
+                crate::error::TranscribeError,
+            >,
+        >,
+    >,
     // Background task for transcription (allows cancel during transcription)
     transcription_task: Option<tokio::task::JoinHandle<TranscriptionResult>>,
 }
@@ -291,26 +293,21 @@ impl Daemon {
 
                     // Skip if too short (likely accidental press)
                     if audio_duration < 0.3 {
-                        tracing::debug!(
-                            "Recording too short ({:.2}s), ignoring",
-                            audio_duration
-                        );
+                        tracing::debug!("Recording too short ({:.2}s), ignoring", audio_duration);
                         self.reset_to_idle(state).await;
                         return false;
                     }
 
-                    tracing::info!(
-                        "Transcribing {:.1}s of audio...",
-                        audio_duration
-                    );
-                    *state = State::Transcribing { audio: samples.clone() };
+                    tracing::info!("Transcribing {:.1}s of audio...", audio_duration);
+                    *state = State::Transcribing {
+                        audio: samples.clone(),
+                    };
                     self.update_state("transcribing");
 
                     // Spawn transcription task (non-blocking)
                     if let Some(t) = transcriber {
-                        self.transcription_task = Some(tokio::task::spawn_blocking(move || {
-                            t.transcribe(&samples)
-                        }));
+                        self.transcription_task =
+                            Some(tokio::task::spawn_blocking(move || t.transcribe(&samples)));
                         return true;
                     } else {
                         tracing::error!("No transcriber available");
@@ -372,18 +369,19 @@ impl Daemon {
                     let output_chain = output::create_output_chain(&output_config);
 
                     // Output the text
-                    *state = State::Outputting { text: final_text.clone() };
+                    *state = State::Outputting {
+                        text: final_text.clone(),
+                    };
 
                     let output_options = output::OutputOptions {
                         pre_output_command: output_config.pre_output_command.as_deref(),
                         post_output_command: output_config.post_output_command.as_deref(),
                     };
 
-                    if let Err(e) = output::output_with_fallback(
-                        &output_chain,
-                        &final_text,
-                        output_options,
-                    ).await {
+                    if let Err(e) =
+                        output::output_with_fallback(&output_chain, &final_text, output_options)
+                            .await
+                    {
                         tracing::error!("Output failed: {}", e);
                     }
 
@@ -418,12 +416,15 @@ impl Daemon {
         self.pid_file_path = write_pid_file();
 
         // Set up signal handlers for external control
-        let mut sigusr1 = signal(SignalKind::user_defined1())
-            .map_err(|e| crate::error::VoxtypeError::Config(format!("Failed to set up SIGUSR1 handler: {}", e)))?;
-        let mut sigusr2 = signal(SignalKind::user_defined2())
-            .map_err(|e| crate::error::VoxtypeError::Config(format!("Failed to set up SIGUSR2 handler: {}", e)))?;
-        let mut sigterm = signal(SignalKind::terminate())
-            .map_err(|e| crate::error::VoxtypeError::Config(format!("Failed to set up SIGTERM handler: {}", e)))?;
+        let mut sigusr1 = signal(SignalKind::user_defined1()).map_err(|e| {
+            crate::error::VoxtypeError::Config(format!("Failed to set up SIGUSR1 handler: {}", e))
+        })?;
+        let mut sigusr2 = signal(SignalKind::user_defined2()).map_err(|e| {
+            crate::error::VoxtypeError::Config(format!("Failed to set up SIGUSR2 handler: {}", e))
+        })?;
+        let mut sigterm = signal(SignalKind::terminate()).map_err(|e| {
+            crate::error::VoxtypeError::Config(format!("Failed to set up SIGTERM handler: {}", e))
+        })?;
 
         // Ensure required directories exist
         Config::ensure_directories().map_err(|e| {
@@ -442,7 +443,9 @@ impl Daemon {
             tracing::info!("Hotkey: {}", self.config.hotkey.key);
             Some(hotkey::create_listener(&self.config.hotkey)?)
         } else {
-            tracing::info!("Built-in hotkey disabled, use 'voxtype record' commands or compositor keybindings");
+            tracing::info!(
+                "Built-in hotkey disabled, use 'voxtype record' commands or compositor keybindings"
+            );
             None
         };
 
@@ -462,7 +465,9 @@ impl Daemon {
         let mut transcriber_preloaded = None;
         if !self.config.whisper.on_demand_loading {
             tracing::info!("Loading transcription model: {}", self.config.whisper.model);
-            transcriber_preloaded = Some(Arc::new(transcribe::create_transcriber(&self.config.whisper)?));
+            transcriber_preloaded = Some(Arc::new(transcribe::create_transcriber(
+                &self.config.whisper,
+            )?));
             tracing::info!("Model loaded, ready for voice input");
         } else {
             tracing::info!("On-demand loading enabled, model will be loaded when recording starts");
@@ -819,23 +824,80 @@ impl Daemon {
                     // Check for recording timeout
                     if let Some(duration) = state.recording_duration() {
                         if duration > max_duration {
-                            tracing::warn!(
-                                "Recording timeout ({:.0}s limit), stopping",
-                                max_duration.as_secs_f32()
-                            );
+                            if self.config.audio.transcribe_on_timeout {
+                                tracing::info!(
+                                    "Recording timeout ({:.0}s limit), transcribing",
+                                    max_duration.as_secs_f32()
+                                );
 
-                            // Stop recording
-                            if let Some(mut capture) = audio_capture.take() {
-                                let _ = capture.stop().await;
-                            }
-                            cleanup_output_mode_override();
-                            state = State::Idle;
-                            self.update_state("idle");
+                                // Get transcriber (same logic as normal stop)
+                                let transcriber = if self.config.whisper.on_demand_loading {
+                                    if let Some(task) = self.model_load_task.take() {
+                                        match task.await {
+                                            Ok(Ok(transcriber)) => {
+                                                tracing::info!("Model loaded successfully");
+                                                Some(Arc::new(transcriber))
+                                            }
+                                            Ok(Err(e)) => {
+                                                tracing::error!("Model loading failed: {}", e);
+                                                self.play_feedback(SoundEvent::Error);
+                                                if let Some(mut capture) = audio_capture.take() {
+                                                    let _ = capture.stop().await;
+                                                }
+                                                state = State::Idle;
+                                                self.update_state("idle");
+                                                continue;
+                                            }
+                                            Err(e) => {
+                                                tracing::error!("Model loading task panicked: {}", e);
+                                                self.play_feedback(SoundEvent::Error);
+                                                if let Some(mut capture) = audio_capture.take() {
+                                                    let _ = capture.stop().await;
+                                                }
+                                                state = State::Idle;
+                                                self.update_state("idle");
+                                                continue;
+                                            }
+                                        }
+                                    } else {
+                                        tracing::error!("No model loading task found");
+                                        self.play_feedback(SoundEvent::Error);
+                                        if let Some(mut capture) = audio_capture.take() {
+                                            let _ = capture.stop().await;
+                                        }
+                                        state = State::Idle;
+                                        self.update_state("idle");
+                                        continue;
+                                    }
+                                } else {
+                                    transcriber_preloaded.clone()
+                                };
 
-                            // Run post_output_command to reset compositor submap
-                            if let Some(cmd) = &self.config.output.post_output_command {
-                                if let Err(e) = output::run_hook(cmd, "post_output").await {
-                                    tracing::warn!("{}", e);
+                                // Stop recording and start transcription
+                                self.start_transcription_task(
+                                    &mut state,
+                                    &mut audio_capture,
+                                    transcriber,
+                                ).await;
+                            } else {
+                                // Default behavior: discard audio on timeout
+                                tracing::warn!(
+                                    "Recording timeout ({:.0}s limit), discarding",
+                                    max_duration.as_secs_f32()
+                                );
+
+                                if let Some(mut capture) = audio_capture.take() {
+                                    let _ = capture.stop().await;
+                                }
+                                cleanup_output_mode_override();
+                                state = State::Idle;
+                                self.update_state("idle");
+
+                                // Run post_output_command to reset compositor submap
+                                if let Some(cmd) = &self.config.output.post_output_command {
+                                    if let Err(e) = output::run_hook(cmd, "post_output").await {
+                                        tracing::warn!("{}", e);
+                                    }
                                 }
                             }
                         }
